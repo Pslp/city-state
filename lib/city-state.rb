@@ -2,7 +2,6 @@ require "city-state/version"
 
 module CS
   # CS constants
-  MAXMIND_ZIPPED_URL = "http://geolite.maxmind.com/download/geoip/database/GeoLite2-City-CSV.zip"
   FILES_FOLDER = File.expand_path('../db', __FILE__)
   MAXMIND_DB_FN = File.join(FILES_FOLDER, "GeoLite2-City-Locations-en.csv")
   COUNTRIES_FN = File.join(FILES_FOLDER, "countries.yml")
@@ -10,12 +9,13 @@ module CS
   @countries, @states, @cities = [{}, {}, {}]
   @current_country = nil # :US, :BR, :GB, :JP, ...
 
-  def self.update_maxmind
+  def self.update_maxmind(license_key = nil)
+    return false unless license_key.present?
     require "open-uri"
     require "zip"
 
     # get zipped file
-    f_zipped = open(MAXMIND_ZIPPED_URL)
+    f_zipped = open("https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City-CSV&license_key=#{license_key}&suffix=zip")
 
     # unzip file:
     # recursively searches for "GeoLite2-City-Locations-en"
@@ -31,8 +31,8 @@ module CS
     true
   end
 
-  def self.update
-    self.update_maxmind # update via internet
+  def self.update(license_key = nil)
+    self.update_maxmind(license_key) # update via internet
     Dir[File.join(FILES_FOLDER, "states.*")].each do |state_fn|
       self.install(state_fn.split(".").last.upcase.to_sym) # reinstall country
     end
@@ -113,7 +113,7 @@ module CS
     # we don't have used this method yet: discover by the file extension
     fn = Dir[File.join(FILES_FOLDER, "cities.*")].last
     @current_country = fn.blank? ? nil : fn.split(".").last
-    
+
     # there's no files: we'll install and use :US
     if @current_country.blank?
       @current_country = :US
@@ -121,7 +121,7 @@ module CS
 
     # we find a file: normalize the extension to something like :US
     else
-      @current_country = @current_country.to_s.upcase.to_sym    
+      @current_country = @current_country.to_s.upcase.to_sym
     end
 
     @current_country
