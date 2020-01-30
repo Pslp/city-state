@@ -37,7 +37,9 @@ module CS
       self.install(state_fn.split(".").last.upcase.to_sym) # reinstall country
     end
     @countries, @states, @cities = [{}, {}, {}] # invalidades cache
-    File.delete COUNTRIES_FN # force countries.yml to be generated at next call of CS.countries
+    if File.exists?(COUNTRIES_FN)
+      File.delete COUNTRIES_FN # force countries.yml to be generated at next call of CS.countries
+    end
     true
   end
 
