@@ -14,6 +14,7 @@ module CS
   @current_country = nil # :US, :BR, :GB, :JP, ...
   @maxmind_zip_url = nil
   @license_key = nil
+  @states_processed = []
 
   # lookup tables for state/cities renaming
   @cities_lookup_fn = nil
@@ -61,6 +62,7 @@ module CS
       self.install(state_fn.split(".").last.upcase.to_sym) # reinstall country
     end
     @countries, @states, @cities = [{}, {}, {}] # invalidades cache
+    @states_processed = []
     File.delete COUNTRIES_FN # force countries.yml to be generated at next call of CS.countries
     true
   end
@@ -161,7 +163,7 @@ module CS
     state = state.to_s.upcase.to_sym
 
     # load the country file
-    if self.blank?(@cities[country])
+    if self.blank?(@cities[country]) || !@states_processed.include?(state)
       cities_fn = File.join(FILES_FOLDER, "cities.#{country.to_s.downcase}")
       self.install(country) if ! File.exists? cities_fn
       @cities[country] = self.symbolize_keys(YAML::load_file(cities_fn))
@@ -174,6 +176,7 @@ module CS
       # Process lookup table
       lookup = get_cities_lookup(country, state)
       if ! lookup.nil?
+        @states_processed.push(state)
         lookup.each do |old_value, new_value|
           if new_value.nil? || self.blank?(new_value)
             @cities[country][state].delete(old_value)
