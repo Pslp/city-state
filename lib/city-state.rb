@@ -14,7 +14,6 @@ module CS
   @current_country = nil # :US, :BR, :GB, :JP, ...
   @maxmind_zip_url = nil
   @license_key = nil
-  @states_processed = []
 
   # lookup tables for state/cities renaming
   @cities_lookup_fn = nil
@@ -62,7 +61,6 @@ module CS
       self.install(state_fn.split(".").last.upcase.to_sym) # reinstall country
     end
     @countries, @states, @cities = [{}, {}, {}] # invalidades cache
-    @states_processed = []
     File.delete COUNTRIES_FN # force countries.yml to be generated at next call of CS.countries
     true
   end
@@ -163,7 +161,7 @@ module CS
     state = state.to_s.upcase.to_sym
 
     # load the country file
-    if self.blank?(@cities[country]) || !@states_processed.include?(state)
+    if self.blank?(@cities[country])
       cities_fn = File.join(FILES_FOLDER, "cities.#{country.to_s.downcase}")
       self.install(country) if ! File.exists? cities_fn
       @cities[country] = self.symbolize_keys(YAML::load_file(cities_fn))
@@ -173,23 +171,24 @@ module CS
         @cities[country][key] = value.uniq || []
       end
 
-      # Process lookup table
-      lookup = get_cities_lookup(country, state)
-      if ! lookup.nil?
-        @states_processed.push(state)
-        lookup.each do |old_value, new_value|
-          if new_value.nil? || self.blank?(new_value)
-            @cities[country][state].delete(old_value)
-          else
-            index = @cities[country][state].index(old_value)
-            if index.nil?
-              @cities[country][state].push(new_value)
+      # New process lookup table
+      lookup = get_all_cities_on_country(country)
+      if !lookup.nil?
+        lookup.each do |state_key, cities_hash|
+          cities_hash.each do |old_value, new_value|
+            if new_value.nil? || self.blank?(new_value)
+              @cities[country][state_key].delete(old_value)
             else
-              @cities[country][state][index] = new_value
+              index = @cities[country][state_key].index(old_value)
+              if index.nil?
+                @cities[country][state_key].push(new_value)
+              else
+                @cities[country][state_key][index] = new_value
+              end
             end
           end
+          @cities[country][state_key] = @cities[country][state_key].sort # sort it alphabetically
         end
-        @cities[country][state] = @cities[country][state].sort # sort it alphabetically
       end
     end
 
@@ -210,6 +209,20 @@ module CS
   def self.set_countries_lookup_file(filename)
     @countries_lookup_fn = filename
     @countries_lookup    = nil
+  end
+
+  def self.get_all_cities_on_country(country)
+    # lookup file not loaded
+    if @cities_lookup.nil?
+      @cities_lookup_fn = DEFAULT_CITIES_LOOKUP_FN if @cities_lookup_fn.nil?
+      @cities_lookup_fn = File.expand_path(@cities_lookup_fn)
+      return nil if ! File.exists?(@cities_lookup_fn)
+      @cities_lookup = self.symbolize_keys(YAML::load_file(@cities_lookup_fn)) # force countries to be symbols
+      @cities_lookup.each { |key, value| @cities_lookup[key] = self.symbolize_keys(value) } # force states to be symbols
+    end
+
+    return nil if ! @cities_lookup.key?(country)
+    @cities_lookup[country]
   end
 
   def self.get_cities_lookup(country, state)
